@@ -4,9 +4,6 @@ A simple library for working with streaming ACN in Swift.
 
 Heavily relies on the fantastic [libe131](https://github.com/hhromic/libe131) library.
 
-
-#### Functionality
-
 #### Examples
 
 Create a universe and listen for channel value changes.
