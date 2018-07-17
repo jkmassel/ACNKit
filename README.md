@@ -1,4 +1,4 @@
-# sACN-swift
+# ACNKit
 
 A simple library for working with streaming ACN in Swift. 
 
