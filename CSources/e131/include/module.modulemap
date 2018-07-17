@@ -1,0 +1,5 @@
+module e131 {
+    header "../e131.h"
+    link "e131"
+    export *
+}
