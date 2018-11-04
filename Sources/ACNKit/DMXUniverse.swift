@@ -1,4 +1,5 @@
 import Foundation
+import e131
 
 typealias DMXUniverseListener = (DMXUniverse) -> ()
 
@@ -20,13 +21,19 @@ class DMXUniverse{
     private let queue: DispatchQueue
     public var listener: DMXUniverseListener?
 
+    public var sourceName: String
+    
+    public var priority = E131_DEFAULT_PRIORITY
+    
     var packetsReceived = 0
     var listenStartDate: Date?
 
-    init(number: UInt16){
+    init(number: UInt16, priority: UInt8 = E131_DEFAULT_PRIORITY){
         self.number = number
+        self.priority = priority
         self.values = []
 
+        self.sourceName = "dmx-universe-\(self.number)"
         self.queue = DispatchQueue(label: "DMX Universe \(number)")
         self.socket = SACNSocket(universe: number)
     }
@@ -80,9 +87,23 @@ class DMXUniverse{
     }
 
     subscript (index: UInt16) -> DMXValue {
-        guard index >= 0 && index <= 512 else { return DMXValue.zero }
-        let value = self.values[Int(index)]
-        return DMXValue(withAbsoluteValue: value)
+        get{
+            guard index >= 0 && index <= 512 else { return DMXValue.zero }
+            let value = self.values[Int(index)]
+            return DMXValue(withAbsoluteValue: value)
+        }
+        set{
+
+            //Don't allow setting out-of-bounds DMX values
+            guard index >= 0 && index <= 512 else{
+                return
+            }
+
+            self.values[Int(index)] = newValue.absoluteValue
+            
+//            let packet = self.createPacket()
+//            self.socket.send_packet(packet)
+        }
     }
 
     var packetsPerSecond: Decimal{
@@ -94,5 +115,12 @@ class DMXUniverse{
 
     deinit {
         self.close()
+    }
+}
+
+extension DMXUniverse{
+    
+    fileprivate func createPacket() -> SACNPacket?{
+        return SACNPacket(universe: self)
     }
 }

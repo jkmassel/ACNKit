@@ -75,6 +75,11 @@ class SACNSocket{
         return SACNPacket(packet: packet)
     }
 
+    public func send_packet(_ packet: SACNPacket){
+
+
+    }
+    
     private func bind() throws{
 
         try self.dispatchQueue.sync {

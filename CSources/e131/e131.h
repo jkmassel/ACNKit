@@ -78,6 +78,8 @@ typedef union {
   uint8_t raw[638]; /* raw buffer view: 638 bytes */
 } e131_packet_t;
 
+int e131_pkt_init(e131_packet_t *packet, const uint16_t universe, const uint16_t num_slots);
+    
 /* E1.31 Framing Options Type */
 typedef enum {
   E131_OPT_TERMINATED = 6,
