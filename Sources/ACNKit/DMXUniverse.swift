@@ -28,9 +28,16 @@ class DMXUniverse{
     var packetsReceived = 0
     var listenStartDate: Date?
 
-    init(number: UInt16, priority: UInt8 = E131_DEFAULT_PRIORITY){
+    var device: DMXDevice?
+    lazy var deviceUUID: UUID = {
+        return device?.uuid ?? UUID()
+    }()
+
+
+    init(number: UInt16, priority: UInt8 = E131_DEFAULT_PRIORITY, on device: DMXDevice? = nil){
         self.number = number
         self.priority = priority
+        self.device = device
         self.values = []
 
         self.sourceName = "dmx-universe-\(self.number)"
@@ -120,7 +127,7 @@ class DMXUniverse{
 
 extension DMXUniverse{
     
-    fileprivate func createPacket() -> SACNPacket?{
+    public func createPacket() -> SACNPacket?{
         return SACNPacket(universe: self)
     }
 }

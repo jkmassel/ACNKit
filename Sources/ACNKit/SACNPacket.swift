@@ -8,21 +8,24 @@ fileprivate func extractACNPID(from packet: e131_packet_t) -> String?{
     return String(bytes: ptr, encoding: .utf8)
 }
 
-fileprivate func extractCID(from packet: e131_packet_t) -> UUID?{
-    var uuidBytes = packet.root.cid
-    
-    let ptr = UnsafeBufferPointer(start: &uuidBytes.0, count: MemoryLayout.size(ofValue: uuidBytes))
-    guard let string = String(bytes: ptr, encoding: .utf8) else { return nil }
-    
-    return UUID(uuidString: string)
+fileprivate func extractCID(from packet: e131_packet_t) -> UUID{
+
+    var uuidTuple = packet.root.cid
+
+    let ptr = UnsafeBufferPointer(start: &uuidTuple.0, count: MemoryLayout.size(ofValue: uuidTuple))
+    let bytes = Array(ptr)
+
+    return NSUUID(uuidBytes: bytes) as UUID
 }
 
 fileprivate func extractSourceName(from packet: e131_packet_t) -> String?{
+
     var sourceName = packet.frame.source_name
     
     let ptr = UnsafeBufferPointer(start: &sourceName.0, count: MemoryLayout.size(ofValue: sourceName))
-    
-    return String(bytes: ptr, encoding: .utf8)
+    let bytes = Array(ptr).filter { $0 != 0 }
+
+    return String(bytes: bytes, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
 fileprivate func extractChannelValues(from packet: e131_packet_t) -> [UInt8]{
@@ -41,18 +44,15 @@ struct SACNRootLayer{
     let cid: UUID
     
     init?(with packet: e131_packet_t) {
-        
-        guard
-            let _pid = extractACNPID(from: packet),
-            let _cid = extractCID(from: packet)
-            else { return nil }
-        
+
+        let _pid = extractACNPID(from: packet)
+
         preambleSize = packet.root.preamble_size
         postambleSize = packet.root.postamble_size
-        acnPID = _pid
+        acnPID = _pid!
         flength = packet.root.flength
         vector = packet.root.vector
-        cid = _cid
+        cid = extractCID(from: packet)
     }
 }
 
@@ -120,11 +120,19 @@ struct SACNPacket : CustomStringConvertible{
     init(packet: e131_packet_t) {
         self.packet = packet
     }
-    
+
     init?(universe: DMXUniverse){
-        var packet: e131_packet_t! = nil
+
+        let pointer: UnsafeMutablePointer = UnsafeMutablePointer<e131_packet_t>
+            .allocate(capacity:  MemoryLayout<e131_packet_t>.size)
+
+        var packet = pointer.move()
+
         guard e131_pkt_init(&packet, universe.number, 512) == 0 else { return nil }
-        
+
+        applyComponentIdentifier(uuid: universe.deviceUUID, to: &packet)
+        applySourceName(name: universe.device?.name ?? "sACN Device", to: &packet)
+
         self.packet = packet
     }
 
@@ -165,5 +173,42 @@ struct SACNPacket : CustomStringConvertible{
         }
 
         return ""
+    }
+}
+
+private func applyComponentIdentifier(uuid: UUID, to packet: inout e131_packet_t ){
+
+    debugPrint(packet.root)
+
+    packet.root.cid = (
+        uuid.uuid.0,
+        uuid.uuid.1,
+        uuid.uuid.2,
+        uuid.uuid.3,
+        uuid.uuid.4,
+        uuid.uuid.5,
+        uuid.uuid.6,
+        uuid.uuid.7,
+        uuid.uuid.8,
+        uuid.uuid.9,
+        uuid.uuid.10,
+        uuid.uuid.11,
+        uuid.uuid.12,
+        uuid.uuid.13,
+        uuid.uuid.14,
+        uuid.uuid.15
+    )
+
+    debugPrint(packet.root)
+}
+
+// TODO: Test that this will not crash if given a name with > 64 bytes
+private func applySourceName(name: String, to packet: inout e131_packet_t){
+
+    // Turn the name into a set of bytes
+    let nameBytes = [UInt8](name.utf8).prefix(64)
+
+    withUnsafeMutableBytes(of: &packet.frame.source_name) { (pointer) in
+        pointer.copyBytes(from: nameBytes)
     }
 }
