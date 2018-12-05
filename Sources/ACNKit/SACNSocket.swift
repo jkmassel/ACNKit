@@ -21,13 +21,13 @@ class SACNSocket{
     private let dispatchQueue: DispatchQueue
     var isConnected = false
 
-    init(universe: UInt16, port: UInt16 = E131_DEFAULT_PORT) {
+    init(universe: UInt16, queue: DispatchQueue, port: UInt16 = E131_DEFAULT_PORT) {
         self.port = port
         self.universe = universe
         self.incomingSocketFileDescriptor = e131_socket()
         self.outgoingSocketFileDescriptor = e131_socket()
 
-        self.dispatchQueue = DispatchQueue(label: "SACN-Socket-\(universe)")
+        self.dispatchQueue = queue
     }
 
     public func connect() -> Bool{
@@ -54,8 +54,6 @@ class SACNSocket{
     private func prepareSocketForBroadcasting(_ fileDescriptor: Int32) throws {
 
         try self.dispatchQueue.sync {
-
-            __e131_interface_test()
 
             var shouldBroadcast = 1
 
@@ -116,8 +114,9 @@ class SACNSocket{
         let data = withUnsafePointer(to: packet.packet, { return $0 })
         let address = withUnsafePointer(to: destination, { return $0 })
 
-        let byteCount = e131_send(self.outgoingSocketFileDescriptor, data, address)
-        debugPrint(byteCount)
+        _ = self.dispatchQueue.sync {
+            e131_send(self.outgoingSocketFileDescriptor, data, address)
+        }
     }
 
     private func getDestination() -> e131_addr_t? {

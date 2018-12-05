@@ -72,44 +72,10 @@ int e131_bind(int sockfd, const uint16_t port) {
 
 e131_addr_t create_sendable_address(const uint16_t universe) {
 
-//    uint8_t high_bits = (uint8_t)((universe & 0xFF00) >> 8);
-//    uint8_t low_bits = (uint8_t)(universe & 0x00FF);
-//
-//    int destination;
-//    char ip_address_v4[15];
-//    sprintf(ip_address_v4, "239.255.%u.%u", high_bits, low_bits);
-//
-//    char ip_address_v6[32];
-//    sprintf(ip_address_v6, "0:0:0:0:0:ffff:efff:%x%x", high_bits, low_bits);
-//
-//    int result = inet_pton(ip_address_v4, ip_address_v6, &destination);
-//    dest.sin_family = AF_INET;
-//    dest.sin_addr.s_addr = destination;
-//    dest.sin_port = htons(E131_DEFAULT_PORT);
-
-    __e131_interface_test(0);
-
     e131_addr_t dest;
     e131_multicast_dest(&dest, universe, E131_DEFAULT_PORT);
 
     return dest;
-}
-
-void __e131_interface_test() {
-    struct ifaddrs *ifap, *ifa;
-    struct sockaddr_in *sa;
-    char *addr;
-
-    getifaddrs (&ifap);
-    for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
-        if (ifa->ifa_addr->sa_family==AF_INET) {
-            sa = (struct sockaddr_in *) ifa->ifa_addr;
-            addr = inet_ntoa(sa->sin_addr);
-            printf("Interface: %s\tAddress: %s\n", ifa->ifa_name, addr);
-        }
-    }
-
-    freeifaddrs(ifap);
 }
 
 /* Initialize a unicast E1.31 destination using a host and port number */

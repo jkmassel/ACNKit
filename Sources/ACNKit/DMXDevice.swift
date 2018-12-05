@@ -11,7 +11,7 @@ public struct DMXDevice{
     let name: String
     let uuid: UUID
 
-    var universe = [DMXUniverse]()
+    var universes = [DMXUniverse]()
 
     public init(name: String) {
         self.init(name: name, uuid: UUID() )
@@ -20,9 +20,23 @@ public struct DMXDevice{
     public init(name: String, uuid: UUID){
         self.name = name
         self.uuid = uuid
+
+        self.sendAutomaticUniverseUpdates()
     }
 
-    mutating func addUniverse(_ universe: DMXUniverse){
-        self.universe.append(universe)
+    public mutating func addUniverse(_ universe: DMXUniverse){
+        self.universes.append(universe)
+    }
+
+    /// Automatically send an update with all of the universe's changes every second,
+    /// even if nothing has changed.
+    private func sendAutomaticUniverseUpdates() {
+        self.universes
+            .compactMap{ $0 as? DMXSendingUniverse }
+            .forEach{ $0.sendPacket() }
+
+        DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 0.1) {
+            self.sendAutomaticUniverseUpdates()
+        }
     }
 }

@@ -101,8 +101,6 @@ typedef enum {
   E131_ERR_ADDR_INC_DMP,
 } e131_error_t;
 
-extern void __e131_interface_test();
-
 /* Create a socket file descriptor suitable for E1.31 communication */
 extern int e131_socket(void);
 

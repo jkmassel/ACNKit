@@ -30,8 +30,10 @@ public class BaseDMXUniverse: DMXUniverse {
         self.number = number
         self.device = device
 
-        self.queue = DispatchQueue(label: "DMX Universe \(number)")
-        self.socket = SACNSocket(universe: number)
+        let queue = DispatchQueue(label: "DMX Universe \(number)")
+
+        self.queue = queue
+        self.socket = SACNSocket(universe: number, queue: queue)
     }
 
     public func connect() -> Bool {
@@ -133,7 +135,10 @@ public class DMXSendingUniverse : BaseDMXUniverse {
 
     @discardableResult
     public override func connect() -> Bool {
-        return self.socket.connect()
+        let result = self.socket.connect()
+        self.sendPacket()
+
+        return result
     }
 
     public func setValues(_ values: [DMXValue]){
@@ -161,6 +166,7 @@ public class DMXSendingUniverse : BaseDMXUniverse {
     }
 
     public func sendPacket(){
+
         guard let packet = self.createPacket() else { return }
         self.socket.send_packet(packet)
     }

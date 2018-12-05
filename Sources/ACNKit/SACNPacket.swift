@@ -149,24 +149,12 @@ public struct SACNPacket : CustomStringConvertible{
 
 private func applyComponentIdentifier(uuid: UUID, to packet: inout e131_packet_t ){
 
-    packet.root.cid = (
-        uuid.uuid.0,
-        uuid.uuid.1,
-        uuid.uuid.2,
-        uuid.uuid.3,
-        uuid.uuid.4,
-        uuid.uuid.5,
-        uuid.uuid.6,
-        uuid.uuid.7,
-        uuid.uuid.8,
-        uuid.uuid.9,
-        uuid.uuid.10,
-        uuid.uuid.11,
-        uuid.uuid.12,
-        uuid.uuid.13,
-        uuid.uuid.14,
-        uuid.uuid.15
-    )
+    let transformedUUID = "{" + uuid.uuidString + "}"
+    let uuidBytes = [UInt8](transformedUUID.utf8).prefix(16)
+
+    withUnsafeMutableBytes(of: &packet.root.cid) { (pointer) in
+        pointer.copyBytes(from: uuidBytes)
+    }
 }
 
 @inline(__always) fileprivate func applySourceName(name: String, to packet: inout e131_packet_t) {
