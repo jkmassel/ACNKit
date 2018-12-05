@@ -13,11 +13,11 @@ public struct DMXDevice{
 
     var universe = [DMXUniverse]()
 
-    init(name: String) {
+    public init(name: String) {
         self.init(name: name, uuid: UUID() )
     }
 
-    init(name: String, uuid: UUID){
+    public init(name: String, uuid: UUID){
         self.name = name
         self.uuid = uuid
     }

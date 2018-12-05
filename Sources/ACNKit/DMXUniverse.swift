@@ -124,15 +124,16 @@ public class DMXSendingUniverse : BaseDMXUniverse {
     public var sourceName: String
     private var currentSequenceNumber: UInt8 = 0
 
-    init(number: UInt16, priority: UInt8 = E131_DEFAULT_PRIORITY, on device: DMXDevice? = nil) {
+    public init(number: UInt16, priority: UInt8 = E131_DEFAULT_PRIORITY, on device: DMXDevice? = nil) {
         self.priority = priority
         self.sourceName = "dmx-universe-\(number)"
 
         super.init(number: number, on: device)
     }
 
+    @discardableResult
     public override func connect() -> Bool {
-        return false
+        return self.socket.connect()
     }
 
     public func setValues(_ values: [DMXValue]){
@@ -162,5 +163,19 @@ public class DMXSendingUniverse : BaseDMXUniverse {
     public func sendPacket(){
         guard let packet = self.createPacket() else { return }
         self.socket.send_packet(packet)
+    }
+
+    public override subscript (index: UInt16) -> DMXValue {
+        get{
+            return super[index]
+        }
+        set{
+            //Don't allow setting out-of-bounds DMX values
+            guard index >= 0 && index <= 512 else{
+                return
+            }
+
+            self._values[Int(index)] = newValue.absoluteValue
+        }
     }
 }

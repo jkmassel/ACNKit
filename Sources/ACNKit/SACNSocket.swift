@@ -1,29 +1,42 @@
 import Foundation
 import e131
 
+struct SocketErr : Error{
+
+    private let code: Int
+
+    init(errorCode: Int) {
+        self.code = errorCode
+    }
+}
+
 class SACNSocket{
 
     public let port: UInt16
     private let universe: UInt16
+
     private var incomingSocketFileDescriptor: Int32
-    private var outgoingSocketFileDescriptor: e131_addr_t?
+    private var outgoingSocketFileDescriptor: Int32
 
     private let dispatchQueue: DispatchQueue
     var isConnected = false
 
-    init(port: UInt16 = E131_DEFAULT_PORT, universe: UInt16) {
+    init(universe: UInt16, port: UInt16 = E131_DEFAULT_PORT) {
         self.port = port
         self.universe = universe
         self.incomingSocketFileDescriptor = e131_socket()
+        self.outgoingSocketFileDescriptor = e131_socket()
 
         self.dispatchQueue = DispatchQueue(label: "SACN-Socket-\(universe)")
-//        debugPrint("initialized socket")
     }
 
     public func connect() -> Bool{
 
+        debugPrint("connecting")
+
         do{
-            try self.bind()
+//            try self.bind()
+            try self.prepareSocketForBroadcasting(self.outgoingSocketFileDescriptor)
         }
         catch let err{
             debugPrint(err)
@@ -36,6 +49,24 @@ class SACNSocket{
         self.isConnected = true
 
         return self.isConnected
+    }
+
+    private func prepareSocketForBroadcasting(_ fileDescriptor: Int32) throws {
+
+        try self.dispatchQueue.sync {
+
+            __e131_interface_test()
+
+            var shouldBroadcast = 1
+
+            let size: UInt32 = UInt32(MemoryLayout.size(ofValue: shouldBroadcast))
+
+            let broadcastResult = setsockopt(fileDescriptor, SOL_SOCKET, SO_BROADCAST, &shouldBroadcast, size)
+
+            guard broadcastResult != -1 else {
+                throw SocketErr(errorCode: 1)
+            }
+        }
     }
 
     public func disconnect(){
@@ -78,19 +109,31 @@ class SACNSocket{
 
     public func send_packet(_ packet: SACNPacket){
 
-        guard self.isConnected else { return }
+        guard self.isConnected, let destination = self.getDestination() else {
+            return
+        }
 
-//        self.dispatchQueue.sync {
-            let addr = create_sendable_address(self.universe)
+        let data = withUnsafePointer(to: packet.packet, { return $0 })
+        let address = withUnsafePointer(to: destination, { return $0 })
 
-            let pointer = withUnsafePointer(to: packet.packet, { return $0 })
-            let socket = withUnsafePointer(to: addr, { return $0 })
-
-
-            e131_send(self.incomingSocketFileDescriptor, pointer, socket)
-//        }
+        let byteCount = e131_send(self.outgoingSocketFileDescriptor, data, address)
+        debugPrint(byteCount)
     }
-    
+
+    private func getDestination() -> e131_addr_t? {
+
+        var outgoingAddress = create_sendable_address(port)
+        let unsafeAddress = withUnsafeMutablePointer(to: &outgoingAddress, { $0 })
+        let result = e131_multicast_dest(unsafeAddress, universe, E131_DEFAULT_PORT)
+
+        guard result == 0 else {
+            return nil
+        }
+
+        return outgoingAddress
+    }
+
+
     private func bind() throws{
 
         try self.dispatchQueue.sync {
@@ -112,20 +155,6 @@ class SACNSocket{
 
         if result != 0{
             debugPrint("Unable to join multicast group for universe \(universe)")
-        }
-
-        return result == 0
-    }
-
-    private func multicast_create(universe: UInt16, port: UInt16 = E131_DEFAULT_PORT) -> Bool {
-
-        self.outgoingSocketFileDescriptor = create_sendable_address(port)
-
-        let socket = withUnsafeMutablePointer(to: &self.outgoingSocketFileDescriptor!, { return $0 })
-        let result = e131_multicast_dest(socket, universe, port)
-
-        if result != 0 {
-            debugPrint("Unable to create multicast destination")
         }
 
         return result == 0
