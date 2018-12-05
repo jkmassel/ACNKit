@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct DMXDevice{
+public struct DMXDevice{
     let name: String
     let uuid: UUID
 

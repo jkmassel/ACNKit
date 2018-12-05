@@ -67,6 +67,30 @@ int e131_bind(int sockfd, const uint16_t port) {
   return bind(sockfd, (struct sockaddr *)&addr, sizeof addr);
 }
 
+#define IP_ADDR_FORMAT
+
+e131_addr_t create_sendable_address(const uint16_t universe) {
+
+    uint8_t high_bits = (uint8_t)((universe & 0xFF00) >> 8);
+    uint8_t low_bits = (uint8_t)(universe & 0x00FF);
+
+    int destination;
+    char ip_address_v4[15];
+    sprintf(ip_address_v4, "239.255.%u.%u", high_bits, low_bits);
+
+    char ip_address_v6[32];
+    sprintf(ip_address_v6, "0:0:0:0:0:ffff:efff:%x%x", high_bits, low_bits);
+
+    int result = inet_pton(ip_address_v4, "", &destination);
+
+    e131_addr_t addr;
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = destination;
+    addr.sin_port = htons(E131_DEFAULT_PORT);
+
+    return addr;
+}
+
 /* Initialize a unicast E1.31 destination using a host and port number */
 int e131_unicast_dest(e131_addr_t *dest, const char *host, const uint16_t port) {
   if (dest == NULL || host == NULL) {

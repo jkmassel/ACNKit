@@ -104,6 +104,9 @@ typedef enum {
 /* Create a socket file descriptor suitable for E1.31 communication */
 extern int e131_socket(void);
 
+/* Create an address for E1.31 communication */
+e131_addr_t create_sendable_address(const uint16_t universe);
+
 /* Bind a socket file descriptor to a port number for E1.31 communication */
 extern int e131_bind(int sockfd, const uint16_t port);
 

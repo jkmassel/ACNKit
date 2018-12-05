@@ -1,21 +1,22 @@
 import Foundation
 import e131
 
-typealias DMXUniverseListener = (DMXUniverse) -> ()
+public typealias DMXUniverseListener = (DMXUniverse) -> ()
 
-protocol DMXUniverseDelegate {
+public protocol DMXUniverseDelegate {
     func universeDidDiscard(invalidPacket: SACNPacket, universe: DMXUniverse)
     func universeDidDiscard(outdatedPacket: SACNPacket, universe: DMXUniverse)
 }
 
-class DMXUniverse{
+public class DMXUniverse{
 
     public let number: UInt16
-    public var values: [UInt8]
+    private var _values = [UInt8](repeating: 0, count: 513)
+    public var values: [UInt8] { return _values }
     public var isListening: Bool = false
     public var delegate: DMXUniverseDelegate?
 
-    private var lastPacket: SACNPacket?
+    private var lastIncomingPacket: SACNPacket?
     private let socket: SACNSocket
 
     private let queue: DispatchQueue
@@ -24,21 +25,20 @@ class DMXUniverse{
     public var sourceName: String
     
     public var priority = E131_DEFAULT_PRIORITY
+    private var currentSequenceNumber: UInt8 = 0
     
     var packetsReceived = 0
     var listenStartDate: Date?
 
     var device: DMXDevice?
-    lazy var deviceUUID: UUID = {
+    public lazy var deviceUUID: UUID = {
         return device?.uuid ?? UUID()
     }()
 
-
-    init(number: UInt16, priority: UInt8 = E131_DEFAULT_PRIORITY, on device: DMXDevice? = nil){
+    public init(number: UInt16, priority: UInt8 = E131_DEFAULT_PRIORITY, on device: DMXDevice? = nil){
         self.number = number
         self.priority = priority
         self.device = device
-        self.values = []
 
         self.sourceName = "dmx-universe-\(self.number)"
         self.queue = DispatchQueue(label: "DMX Universe \(number)")
@@ -46,7 +46,7 @@ class DMXUniverse{
     }
 
     @discardableResult
-    func startListeningForChanges() -> Bool{
+    public func connect() -> Bool{
 
         self.isListening = true
         self.listenStartDate = Date()
@@ -56,7 +56,7 @@ class DMXUniverse{
         return self.socket.connect()
     }
 
-    func close(){
+    public func close(){
         self.socket.disconnect()
     }
 
@@ -84,16 +84,16 @@ class DMXUniverse{
             return
         }
 
-        guard !(lastPacket?.isNewerThan(packet) ?? false) else {
+        guard !(lastIncomingPacket?.isNewerThan(packet) ?? false) else {
             self.delegate?.universeDidDiscard(outdatedPacket: packet, universe: self)
             return
         }
 
-        self.values = packet.values
+        self._values = packet.values
         self.listener?(self)
     }
 
-    subscript (index: UInt16) -> DMXValue {
+    public subscript (index: UInt16) -> DMXValue {
         get{
             guard index >= 0 && index <= 512 else { return DMXValue.zero }
             let value = self.values[Int(index)]
@@ -106,14 +106,20 @@ class DMXUniverse{
                 return
             }
 
-            self.values[Int(index)] = newValue.absoluteValue
-            
-//            let packet = self.createPacket()
-//            self.socket.send_packet(packet)
+
+            self._values[Int(index)] = newValue.absoluteValue
         }
     }
 
-    var packetsPerSecond: Decimal{
+    public func setValues(_ values: [DMXValue]){
+        self._values = values.map({ $0.absoluteValue })
+    }
+
+    public func setValues( _ values: [UInt8]){
+        self._values = values
+    }
+
+    public var packetsPerSecond: Decimal{
         guard let startDate = self.listenStartDate else { return 0 }
         let numberOfSeconds = Date().timeIntervalSince(startDate)
 
@@ -128,6 +134,23 @@ class DMXUniverse{
 extension DMXUniverse{
     
     public func createPacket() -> SACNPacket?{
-        return SACNPacket(universe: self)
+        return SACNPacket(universe: self, withSequenceNumber: self.nextSequenceNumber())
+    }
+
+    internal func nextSequenceNumber() -> UInt8 {
+
+        if self.currentSequenceNumber == UInt8.max {
+            self.currentSequenceNumber = 0
+        }
+        else{
+            self.currentSequenceNumber += 1
+        }
+
+        return self.currentSequenceNumber
+    }
+
+    public func sendPacket(){
+        guard let packet = self.createPacket() else { return }
+        self.socket.send_packet(packet)
     }
 }

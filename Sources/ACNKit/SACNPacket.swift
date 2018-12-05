@@ -1,39 +1,6 @@
 import Foundation
 import e131
 
-fileprivate func extractACNPID(from packet: e131_packet_t) -> String?{
-    var pid = packet.root.acn_pid
-    
-    let ptr = UnsafeBufferPointer(start: &pid.0, count: MemoryLayout.size(ofValue: pid))
-    return String(bytes: ptr, encoding: .utf8)
-}
-
-fileprivate func extractCID(from packet: e131_packet_t) -> UUID{
-
-    var uuidTuple = packet.root.cid
-
-    let ptr = UnsafeBufferPointer(start: &uuidTuple.0, count: MemoryLayout.size(ofValue: uuidTuple))
-    let bytes = Array(ptr)
-
-    return NSUUID(uuidBytes: bytes) as UUID
-}
-
-fileprivate func extractSourceName(from packet: e131_packet_t) -> String?{
-
-    var sourceName = packet.frame.source_name
-    
-    let ptr = UnsafeBufferPointer(start: &sourceName.0, count: MemoryLayout.size(ofValue: sourceName))
-    let bytes = Array(ptr).filter { $0 != 0 }
-
-    return String(bytes: bytes, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-}
-
-fileprivate func extractChannelValues(from packet: e131_packet_t) -> [UInt8]{
-    var channelValues = packet.frame.source_name
-    let ptr = UnsafeBufferPointer(start: &channelValues.0, count: MemoryLayout.size(ofValue: channelValues))
-    return [UInt8](ptr)
-}
-
 struct SACNRootLayer{
     
     let preambleSize: UInt16
@@ -101,9 +68,9 @@ struct SACNDMPLayer{
     }
 }
 
-struct SACNPacket : CustomStringConvertible{
+public struct SACNPacket : CustomStringConvertible{
     
-    private let packet: e131_packet_t
+    internal let packet: e131_packet_t
 
     var rootLayer: SACNRootLayer?{
         return SACNRootLayer(with: self.packet)
@@ -121,7 +88,7 @@ struct SACNPacket : CustomStringConvertible{
         self.packet = packet
     }
 
-    init?(universe: DMXUniverse){
+    init?(universe: DMXUniverse, withSequenceNumber sequenceNumber: UInt8 = 0){
 
         let pointer: UnsafeMutablePointer = UnsafeMutablePointer<e131_packet_t>
             .allocate(capacity:  MemoryLayout<e131_packet_t>.size)
@@ -132,13 +99,18 @@ struct SACNPacket : CustomStringConvertible{
 
         applyComponentIdentifier(uuid: universe.deviceUUID, to: &packet)
         applySourceName(name: universe.device?.name ?? "sACN Device", to: &packet)
+        applyDMXChannels(universe.values, to: &packet)
+        packet.frame.seq_number = sequenceNumber
 
         self.packet = packet
+
+        assert(universe.values == self.values)
     }
 
-    func valueForChannel(_ number: UInt) -> UInt8{
-        guard number <= 512 && number >= 0 else { return 0 }
-        return self.values[Int(number)]
+    public func valueForChannel(_ number: Int) -> DMXValue{
+        guard number <= 512 && number > 0 else { return DMXValue(withAbsoluteValue: 0) }
+        let absoluteValue = self.dmpLayer?.propertyValues[number] ?? 0
+        return DMXValue(withAbsoluteValue: absoluteValue)
     }
 
     func isNewerThan(_ packet: SACNPacket) -> Bool{
@@ -147,18 +119,17 @@ struct SACNPacket : CustomStringConvertible{
     }
 
     var values: [UInt8]{
-        var tmp = self.packet.dmp.prop_val
-        return [UInt8](UnsafeBufferPointer(start: &tmp.0, count: MemoryLayout.size(ofValue: tmp)))
+        return extractChannelValues(from: self.packet)
     }
 
-    var isValid: Bool{
+    public var isValid: Bool{
         var packet = self.packet
         let status = e131_pkt_validate(&packet)
 
         return status == E131_ERR_NONE
     }
 
-    var description: String{
+    public var description: String{
 
         //This is a gnarly hack - right now I can't find a way to
         //get it to dump into a string, so we just write to stdOut
@@ -178,8 +149,6 @@ struct SACNPacket : CustomStringConvertible{
 
 private func applyComponentIdentifier(uuid: UUID, to packet: inout e131_packet_t ){
 
-    debugPrint(packet.root)
-
     packet.root.cid = (
         uuid.uuid.0,
         uuid.uuid.1,
@@ -198,12 +167,9 @@ private func applyComponentIdentifier(uuid: UUID, to packet: inout e131_packet_t
         uuid.uuid.14,
         uuid.uuid.15
     )
-
-    debugPrint(packet.root)
 }
 
-// TODO: Test that this will not crash if given a name with > 64 bytes
-private func applySourceName(name: String, to packet: inout e131_packet_t){
+@inline(__always) fileprivate func applySourceName(name: String, to packet: inout e131_packet_t) {
 
     // Turn the name into a set of bytes
     let nameBytes = [UInt8](name.utf8).prefix(64)
@@ -211,4 +177,48 @@ private func applySourceName(name: String, to packet: inout e131_packet_t){
     withUnsafeMutableBytes(of: &packet.frame.source_name) { (pointer) in
         pointer.copyBytes(from: nameBytes)
     }
+}
+
+@inline(__always) fileprivate func applyDMXChannels(_ channels: [UInt8], to packet: inout e131_packet_t) {
+
+    precondition(channels.count == 513)
+
+    withUnsafeMutableBytes(of: &packet.dmp.prop_val) { (pointer) in
+//        pointer.storeBytes(of: <#T##T#>, toByteOffset: <#T##Int#>, as: <#T##T.Type#>)
+// For better performance – it might be better to maintain a ready-to-go packet at all times,
+// and updates just send the packet on its way
+        pointer.copyBytes(from: channels)
+    }
+}
+
+@inline(__always) fileprivate func extractACNPID(from packet: e131_packet_t) -> String?{
+    var pid = packet.root.acn_pid
+
+    let ptr = UnsafeBufferPointer(start: &pid.0, count: MemoryLayout.size(ofValue: pid))
+    return String(bytes: ptr, encoding: .utf8)
+}
+
+@inline(__always) fileprivate func extractCID(from packet: e131_packet_t) -> UUID{
+
+    var uuidTuple = packet.root.cid
+
+    let ptr = UnsafeBufferPointer(start: &uuidTuple.0, count: MemoryLayout.size(ofValue: uuidTuple))
+    let bytes = Array(ptr)
+
+    return NSUUID(uuidBytes: bytes) as UUID
+}
+
+@inline(__always) fileprivate func extractSourceName(from packet: e131_packet_t) -> String?{
+
+    var sourceName = packet.frame.source_name
+
+    let ptr = UnsafeBufferPointer(start: &sourceName.0, count: MemoryLayout.size(ofValue: sourceName))
+    let bytes = Array(ptr).filter { $0 != 0 }
+
+    return String(bytes: bytes, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+@inline(__always)  func extractChannelValues(from packet: e131_packet_t) -> [UInt8]{
+    var tmp = packet.dmp.prop_val
+    return [UInt8](UnsafeBufferPointer(start: &tmp.0, count: MemoryLayout.size(ofValue: tmp)))
 }

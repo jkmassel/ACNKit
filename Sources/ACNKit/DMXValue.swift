@@ -1,16 +1,20 @@
 import Foundation
 
-struct DMXValue{
+public struct DMXValue: Equatable {
 
-    static let zero = DMXValue(withAbsoluteValue: 0)
+    public static let zero = DMXValue(withAbsoluteValue: 0)
 
-    let absoluteValue: UInt8
+    public let absoluteValue: UInt8
 
-    init(withAbsoluteValue value: UInt8){
+    public init(withAbsoluteValue value: UInt8){
         self.absoluteValue = value
     }
 
-    var percent: Decimal{
+    public var percent: Decimal{
         return Decimal(self.absoluteValue) / 255 * 100
+    }
+
+    public static func == (lhs: DMXValue, rhs: DMXValue) -> Bool {
+        return lhs.absoluteValue == rhs.absoluteValue
     }
 }

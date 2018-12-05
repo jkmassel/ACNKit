@@ -35,4 +35,13 @@ class SACNPacketTests: XCTestCase {
         assert(packet?.frameLayer?.sourceName.lengthOfBytes(using: .utf8) == 64, "The device name should be truncated down to 64 characters")
         assert(packet?.frameLayer?.sourceName == String(universeName.prefix(64)), "The packet's source name should be the first 64 characters of the device name")
     }
+
+    func testThatDMXValuesAreCorrectlyApplied(){
+
+        let values = (0...512).map{ _ in UInt8.random(in: 0...255) }
+        universe.setValues(values)
+        let packet = universe.createPacket()!
+
+        XCTAssertEqual(values, packet.values)
+    }
 }
