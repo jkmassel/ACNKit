@@ -3,13 +3,12 @@ import XCTest
 
 final class sACN_swiftTests: XCTestCase {
 
-    let universe = DMXUniverse(number: 1)
+    let universe = DMXReceivingUniverse(number: 1)
 
     func testThatChannelZeroReturnsZero(){
         let exp = XCTestExpectation()
 
         universe.listener = {
-
             if $0[0].percent == 0{
                 exp.fulfill()
             }
@@ -32,7 +31,7 @@ final class sACN_swiftTests: XCTestCase {
     }
 
     override func setUp() {
-        universe.startListeningForChanges()
+        universe.connect()
         super.setUp()
     }
 

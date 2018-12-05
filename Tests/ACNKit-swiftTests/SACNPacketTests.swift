@@ -12,7 +12,7 @@ fileprivate let device = DMXDevice(name: "My Test Device")
 
 class SACNPacketTests: XCTestCase {
 
-    let universe = DMXUniverse(number: 1, priority: 1, on: device)
+    let universe = DMXSendingUniverse(number: 1, priority: 1, on: device)
 
     func testThatPacketUUIDIsCorrectlyApplied(){
         let packet = universe.createPacket()!
@@ -29,7 +29,7 @@ class SACNPacketTests: XCTestCase {
         let universeName = NSUUID().uuidString + NSUUID().uuidString
 
         let device = DMXDevice(name: universeName) //72 Byte Name
-        let universe = DMXUniverse(number: 1, priority: 1, on: device)
+        let universe = DMXSendingUniverse(number: 1, priority: 1, on: device)
         let packet = universe.createPacket()
 
         assert(packet?.frameLayer?.sourceName.lengthOfBytes(using: .utf8) == 64, "The device name should be truncated down to 64 characters")

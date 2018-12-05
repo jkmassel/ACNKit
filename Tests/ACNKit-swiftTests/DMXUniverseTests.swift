@@ -12,7 +12,7 @@ class DMXUniverseTests: XCTestCase {
 
     func testSequenceNumberWrapping() {
 
-        let universe = DMXUniverse(number: 1)
+        let universe = DMXSendingUniverse(number: 1)
 
         for _ in 1...1000 {
             _  = universe.nextSequenceNumber()

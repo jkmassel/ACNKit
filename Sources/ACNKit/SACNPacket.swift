@@ -88,7 +88,7 @@ public struct SACNPacket : CustomStringConvertible{
         self.packet = packet
     }
 
-    init?(universe: DMXUniverse, withSequenceNumber sequenceNumber: UInt8 = 0){
+    init?(universe: DMXSendingUniverse, withSequenceNumber sequenceNumber: UInt8 = 0){
 
         let pointer: UnsafeMutablePointer = UnsafeMutablePointer<e131_packet_t>
             .allocate(capacity:  MemoryLayout<e131_packet_t>.size)
