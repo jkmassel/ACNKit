@@ -147,14 +147,8 @@ public struct SACNPacket : CustomStringConvertible{
     }
 }
 
-private func applyComponentIdentifier(uuid: UUID, to packet: inout e131_packet_t ){
-
-    let transformedUUID = "{" + uuid.uuidString + "}"
-    let uuidBytes = [UInt8](transformedUUID.utf8).prefix(16)
-
-    withUnsafeMutableBytes(of: &packet.root.cid) { (pointer) in
-        pointer.copyBytes(from: uuidBytes)
-    }
+private func applyComponentIdentifier(uuid: UUID, to packet: inout e131_packet_t ) {
+    packet.root.cid = uuid.uuid
 }
 
 @inline(__always) fileprivate func applySourceName(name: String, to packet: inout e131_packet_t) {
@@ -179,34 +173,24 @@ private func applyComponentIdentifier(uuid: UUID, to packet: inout e131_packet_t
     }
 }
 
-@inline(__always) fileprivate func extractACNPID(from packet: e131_packet_t) -> String?{
-    var pid = packet.root.acn_pid
-
-    let ptr = UnsafeBufferPointer(start: &pid.0, count: MemoryLayout.size(ofValue: pid))
-    return String(bytes: ptr, encoding: .utf8)
+@inline(__always) fileprivate func extractACNPID(from packet: e131_packet_t) -> String? {
+    return withUnsafeBytes(of: packet.root.acn_pid) { String(bytes: $0, encoding: .utf8) }
 }
 
 @inline(__always) fileprivate func extractCID(from packet: e131_packet_t) -> UUID{
-
-    var uuidTuple = packet.root.cid
-
-    let ptr = UnsafeBufferPointer(start: &uuidTuple.0, count: MemoryLayout.size(ofValue: uuidTuple))
-    let bytes = Array(ptr)
-
-    return NSUUID(uuidBytes: bytes) as UUID
+    return UUID(uuid: packet.root.cid)
 }
 
-@inline(__always) fileprivate func extractSourceName(from packet: e131_packet_t) -> String?{
+@inline(__always) fileprivate func extractSourceName(from packet: e131_packet_t) -> String? {
+     return withUnsafeBytes(of: packet.frame.source_name) {
+        guard let ptr = $0.baseAddress?.assumingMemoryBound(to: CChar.self) else {
+            return nil
+        }
 
-    var sourceName = packet.frame.source_name
-
-    let ptr = UnsafeBufferPointer(start: &sourceName.0, count: MemoryLayout.size(ofValue: sourceName))
-    let bytes = Array(ptr).filter { $0 != 0 }
-
-    return String(bytes: bytes, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return String(cString: ptr).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 @inline(__always)  func extractChannelValues(from packet: e131_packet_t) -> [UInt8]{
-    var tmp = packet.dmp.prop_val
-    return [UInt8](UnsafeBufferPointer(start: &tmp.0, count: MemoryLayout.size(ofValue: tmp)))
+    return withUnsafeBytes(of: packet.dmp.prop_val) { [UInt8]($0) }
 }
